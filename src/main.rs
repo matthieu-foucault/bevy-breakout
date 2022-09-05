@@ -5,7 +5,7 @@ use bevy::{
     sprite::collide_aabb::{collide, Collision},
     time::FixedTimestep,
 };
-use bevy_editor_pls::prelude::*;
+use rand::{thread_rng, Rng};
 
 // Defines the amount of time that should elapse between each physics step.
 const TIME_STEP: f32 = 1.0 / 60.0;
@@ -46,7 +46,12 @@ const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
 const BALL_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
-const BRICK_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
+const BRICK_COLORS: [Color; 4] = [
+    Color::rgb(248.0 / 255.0, 221.0 / 255.0, 164.0 / 255.0),
+    Color::rgb(249.0 / 255.0, 160.0 / 255.0, 63.0 / 255.0),
+    Color::rgb(212.0 / 255.0, 81.0 / 255.0, 19.0 / 255.0),
+    Color::rgb(129.0 / 255.0, 52.0 / 255.0, 5.0 / 255.0),
+];
 const WALL_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
 const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
@@ -54,7 +59,6 @@ const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EditorPlugin)
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_startup_system(setup)
@@ -88,8 +92,35 @@ struct Collider;
 struct CollisionEvent;
 
 #[derive(Component)]
-struct Brick {
-    hp: u8,
+struct BrickHitPoints(u8);
+
+#[derive(Bundle)]
+struct BrickBundle {
+    #[bundle]
+    sprite_bundle: SpriteBundle,
+    collider: Collider,
+    hp: BrickHitPoints,
+}
+
+impl BrickBundle {
+    fn new(position: Vec2, hp: u8) -> BrickBundle {
+        BrickBundle {
+            sprite_bundle: SpriteBundle {
+                sprite: Sprite {
+                    color: BRICK_COLORS[usize::from(hp - 1)],
+                    ..default()
+                },
+                transform: Transform {
+                    translation: position.extend(0.0),
+                    scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
+                    ..default()
+                },
+                ..default()
+            },
+            collider: Collider,
+            hp: BrickHitPoints(hp),
+        }
+    }
 }
 
 struct CollisionSound(Handle<AudioSource>);
@@ -293,22 +324,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             );
 
             // brick
-            commands
-                .spawn()
-                .insert(Brick { hp: 2 })
-                .insert_bundle(SpriteBundle {
-                    sprite: Sprite {
-                        color: BRICK_COLOR,
-                        ..default()
-                    },
-                    transform: Transform {
-                        translation: brick_position.extend(0.0),
-                        scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
-                        ..default()
-                    },
-                    ..default()
-                })
-                .insert(Collider);
+            commands.spawn_bundle(BrickBundle::new(
+                brick_position,
+                thread_rng().gen_range(1..5),
+            ));
         }
     }
 }
@@ -355,14 +374,17 @@ fn check_for_collisions(
     mut commands: Commands,
     mut scoreboard: ResMut<Scoreboard>,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
-    mut collider_query: Query<(Entity, &Transform, Option<&mut Brick>), With<Collider>>,
+    mut collider_query: Query<
+        (Entity, &Transform, &mut Sprite, Option<&mut BrickHitPoints>),
+        With<Collider>,
+    >,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
     let (mut ball_velocity, ball_transform) = ball_query.single_mut();
     let ball_size = ball_transform.scale.truncate();
 
     // check collision with walls
-    for (collider_entity, transform, maybe_brick) in &mut collider_query {
+    for (collider_entity, transform, mut sprite, maybe_brick) in &mut collider_query {
         let collision = collide(
             ball_transform.translation,
             ball_size,
@@ -375,10 +397,12 @@ fn check_for_collisions(
 
             // Bricks should be despawned and increment the scoreboard on collision
             if let Some(mut brick) = maybe_brick {
-                brick.hp -= 1;
-                if brick.hp == 0 {
+                if brick.0 == 1 {
                     scoreboard.score += 1;
                     commands.entity(collider_entity).despawn();
+                } else {
+                    brick.0 -= 1;
+                    sprite.color = BRICK_COLORS[usize::from(brick.0 - 1)];
                 }
             }
 
