@@ -1,0 +1,22 @@
+[package]
+name = "bevy-snake"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# NOTE: Remember to revert the dynamic feature before releasing your game!
+# Otherwise you will need to include libbevy_dylib alongside your game if you want it to run.
+# If you remove the "dynamic" feature, your game executable can run standalone.
+bevy = { version = "0.8.1", features = ["dynamic"] }
+bevy_editor_pls = "0.1.1"
+rand = "0.8.5"
+
+# Enable a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3
