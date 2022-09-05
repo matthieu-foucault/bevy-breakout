@@ -92,14 +92,16 @@ struct Collider;
 struct CollisionEvent;
 
 #[derive(Component)]
-struct BrickHitPoints(u8);
+struct Brick {
+    hp: u8,
+}
 
 #[derive(Bundle)]
 struct BrickBundle {
     #[bundle]
     sprite_bundle: SpriteBundle,
     collider: Collider,
-    hp: BrickHitPoints,
+    brick: Brick,
 }
 
 impl BrickBundle {
@@ -118,7 +120,7 @@ impl BrickBundle {
                 ..default()
             },
             collider: Collider,
-            hp: BrickHitPoints(hp),
+            brick: Brick { hp },
         }
     }
 }
@@ -375,7 +377,7 @@ fn check_for_collisions(
     mut scoreboard: ResMut<Scoreboard>,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
     mut collider_query: Query<
-        (Entity, &Transform, &mut Sprite, Option<&mut BrickHitPoints>),
+        (Entity, &Transform, &mut Sprite, Option<&mut Brick>),
         With<Collider>,
     >,
     mut collision_events: EventWriter<CollisionEvent>,
@@ -397,12 +399,12 @@ fn check_for_collisions(
 
             // Bricks should be despawned and increment the scoreboard on collision
             if let Some(mut brick) = maybe_brick {
-                if brick.0 == 1 {
+                if brick.hp == 1 {
                     scoreboard.score += 1;
                     commands.entity(collider_entity).despawn();
                 } else {
-                    brick.0 -= 1;
-                    sprite.color = BRICK_COLORS[usize::from(brick.0 - 1)];
+                    brick.hp -= 1;
+                    sprite.color = BRICK_COLORS[usize::from(brick.hp - 1)];
                 }
             }
 
